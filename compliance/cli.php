@@ -3,34 +3,18 @@
 //autoloading and config
 require_once '../vendor/autoload.php';
 $config = include '../config.php';
-$nexmo = new Nexmo\Client(new \Nexmo\Client\Credentials\Basic($config['nexmo']['key'], $config['nexmo']['secret']));
 $service = new \Compliance\Service($config);
-$queue = new \Pheanstalk\Pheanstalk('127.0.0.1');
-$queue->useTube('crawl');
 
-//base [u]rl
-$getopt = getopt('d:', ['stats']);
+//manual [u]rl
+$getopt = getopt('u:');
 
-if(isset($getopt['stats'])){
-
-}
-
-if(!isset($getopt['d'])){
-    echo "-d domain" . PHP_EOL;
+if(!isset($getopt['u'])){
+    echo "-u url" . PHP_EOL;
     return;
 }
 
-$domain = $getopt['d'];
-$url = 'https://' . $domain;
-
-error_log('seeding search with: ' . $url);
+$url = $getopt['u'];
+error_log('manually adding url: ' . $url);
 
 //add to db
 $service->addPage($url);
-
-//seed crawl
-$queue->put('crawl', json_encode([
-    'url' => $url,
-]));
-
-error_log('job started');
