@@ -1,42 +1,28 @@
+#!/usr/bin/php
 <?php
 //autoloading and config
 require_once '../vendor/autoload.php';
 $config = include '../config.php';
 
-//setup nexmo
-$nexmo = new Nexmo\Client(new \Nexmo\Client\Credentials\Basic($config['nexmo']['key'], $config['nexmo']['secret']));
-
-//process all the rows
-while($row = fgetcsv(STDIN)){
-
-    //create HTTP request
-    $request = new \Zend\Diactoros\Request(
-        'https://api.nexmo.com/ni/basic/json',
-        'POST',
-        'php://temp',
-        ['Content-Type' => 'application/json']
-    );
-
-    //set request data
-    $request->getBody()->write(json_encode([
-        'country' => $row[0],
-        'number' => $row[1]
-    ]));
-
-    //call API and parse response
-    $response = $nexmo->send($request);
-    $data = $response->getBody()->getContents();
-    $data = json_decode($data, true);
-
-    //no number data found
-    if(!$data OR !isset($data['status']) OR !($data['status'] == 0)){
-        fputcsv(STDOUT, array_merge($row, [null, null]));
-        continue;
-    }
-
-    //number data found
-    fputcsv(STDOUT, array_merge($row, [
-        $data['international_format_number'],
-        $data['national_format_number']
-    ]));
+//require an output filename
+$getopt = getopt('f:');
+if(!isset($getopt['f'])){
+    echo "use -f to set output file" . PHP_EOL;
+    return;
 }
+
+//setup queue
+$queue = new \Pheanstalk\Pheanstalk('127.0.0.1');
+$queue->useTube('normalize');
+
+//create jobs for each number
+$count = 0;
+while($row = fgetcsv(STDIN)){
+    $queue->put(json_encode([
+        'row' => $row,
+        'file' => $getopt['f']
+    ]));
+    $count++;
+}
+
+echo "Added $count to queue." . PHP_EOL;
